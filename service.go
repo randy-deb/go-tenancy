@@ -42,7 +42,7 @@ func tenantResolverMiddleware(next http.Handler) http.Handler {
 		path := r.URL.Path
 		segments := strings.Split(path, "/")
 		virtualPath := ""
-		if len(segments) >= 1 {
+		if len(segments) >= 2 {
 			virtualPath = segments[1]
 		}
 
@@ -62,17 +62,7 @@ func tenantResolverMiddleware(next http.Handler) http.Handler {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			/* tenant, ok := contextData.(*Tenant) => ok = true
-			ctx = context.WithValue(ctx, tenantKey, &Tenant{
-				Id: tenant.Id,
-				Name: tenant.Name,
-				Host: tenant.Host,
-				VirtualPath: tenant.VirtualPath,
-			})
-			*/
-
-			// tenant, ok := contextData.(*Tenant) => ok = false
-			ctx = context.WithValue(ctx, tenantKey, &tenant)
+			ctx = context.WithValue(ctx, tenantKey, tenant)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		} else {
 			http.NotFound(w, r)
