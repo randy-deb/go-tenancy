@@ -12,30 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/deborggraever/go-tenancy/pkg/tenancy"
 	"github.com/gorilla/mux"
 )
 
-type key int
-
-const tenantKey key = 0
-
-type Tenant struct {
-	Id          string
-	Name        string
-	Host        string
-	VirtualPath string
-}
-
-var allTenants []Tenant
-
-func findTenant(host string, virtualPath string) *Tenant {
-	for _, item := range allTenants {
-		if item.Host == host && item.VirtualPath == virtualPath {
-			return &item
-		}
-	}
-	return nil
-}
+var tenantStore tenancy.TenantStore
 
 func tenantResolverMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -46,40 +27,28 @@ func tenantResolverMiddleware(next http.Handler) http.Handler {
 			virtualPath = segments[1]
 		}
 
-		tenant := findTenant(r.Host, virtualPath)
-		if tenant == nil && virtualPath != "" {
-			tenant = findTenant(r.Host, "")
+		tenant, err := tenantStore.Resolve("http", r.Host, virtualPath)
+		if err != nil {
+			tenant, err = tenantStore.Resolve("http", r.Host, "")
 		}
-		if tenant != nil {
-			fmt.Printf("Tenant resolve: %s\r\n", tenant.Name)
+		if err != nil {
+			fmt.Printf("Tenant not resolved\n")
 
-			if tenant.VirtualPath != "" {
-				fmt.Printf("Rewrite tenant uri\r\n")
-				path = "/" + strings.Join(segments[2:], "/")
-				r.URL.Path = path
-			}
-
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			ctx = context.WithValue(ctx, tenantKey, tenant)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		} else {
 			http.NotFound(w, r)
+			return
 		}
+
+		fmt.Printf("Tenant resolved: %s\n", tenant.Name)
+
+		r = tenancy.UrlRewrite(r, tenant)
+		r = tenancy.SetTenant(r, tenant)
+		next.ServeHTTP(w, r)
 	})
 }
 
 func testHandler(w http.ResponseWriter, r *http.Request) {
-
-	contextData := r.Context().Value(tenantKey)
-	tenant, ok := contextData.(*Tenant)
-
-	if ok {
-		fmt.Fprintf(w, "test %v", tenant.Name)
-	} else {
-		fmt.Fprintf(w, "NOK")
-	}
+	tenant := tenancy.GetTenant(r)
+	fmt.Fprintf(w, "Tenant: %v\n", tenant.Name)
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -102,10 +71,7 @@ func main() {
 
 	log.Println("Starting")
 
-	allTenants = []Tenant{
-		{Id: "1", Name: "Dev", Host: "localhost:5100", VirtualPath: "dev"},
-		{Id: "2", Name: "Stg", Host: "localhost:5100", VirtualPath: "stg"},
-	}
+	tenantStore = tenancy.NewInMemoryTenantStore()
 
 	// Setup the router
 	router := mux.NewRouter().StrictSlash(true)

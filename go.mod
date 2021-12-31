@@ -1,4 +1,4 @@
-module go-tenant
+module github.com/deborggraever/go-tenancy
 
 go 1.17
 
