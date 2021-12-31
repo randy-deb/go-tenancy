@@ -62,14 +62,16 @@ func tenantResolverMiddleware(next http.Handler) http.Handler {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			/*
-				ctx = context.WithValue(ctx, tenantKey, &Tenant{
-					Id: tenant.Id,
-					Name: tenant.Name,
-					Host: tenant.Host,
-					VirtualPath: tenant.VirtualPath,
-				})
+			/* tenant, ok := contextData.(*Tenant) => ok = true
+			ctx = context.WithValue(ctx, tenantKey, &Tenant{
+				Id: tenant.Id,
+				Name: tenant.Name,
+				Host: tenant.Host,
+				VirtualPath: tenant.VirtualPath,
+			})
 			*/
+
+			// tenant, ok := contextData.(*Tenant) => ok = false
 			ctx = context.WithValue(ctx, tenantKey, &tenant)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		} else {
